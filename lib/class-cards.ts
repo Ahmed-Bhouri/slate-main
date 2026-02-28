@@ -17,6 +17,8 @@ export type ClassCardData = {
   buttonClass: string;
   showDecorativeStar?: boolean;
   href?: string;
+  onClick?: () => void;
+  challenge?: ClassScenarioChallenge; // Add full challenge object for click handler access
 };
 
 /** Shape of one challenge from POST /api/class-scenario (classScenario.challenges[]). */
@@ -30,6 +32,10 @@ export type ClassScenarioChallenge = {
     topic?: string;
     grade_level?: string;
     objective?: string;
+    persona_generation_constraints?: {
+      num_students_needed: number;
+      student_archetypes_needed: { type: string; count: number }[];
+    };
   };
   difficulty?: string;
   estimated_duration?: number;
@@ -88,7 +94,8 @@ export function mapChallengeToClassCard(
     buttonText: "Start Class",
     buttonClass: "bg-[#05c770]",
     showDecorativeStar: index === 0,
-    href: "/course-in-progress",
+    href: challenge.id ? `/course-in-progress/${challenge.id}` : undefined,
+    challenge // Pass original challenge object
   };
 }
 

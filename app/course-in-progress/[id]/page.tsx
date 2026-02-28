@@ -3,142 +3,121 @@
 import NextImage from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect } from "react";
+import { useEffect, useState, useRef } from "react";
 import clsx from "clsx";
 import { useProfileStore } from "@/stores/profileStore";
+import { useClassStore } from "@/stores/classStore";
+import { useTranscription } from "@/lib/useTranscription";
+import { getAvatarImage } from "@/lib/avatarMapping";
+import { Mic, MicOff, Loader2 } from "lucide-react";
+import type { ClassState } from "@/types/classroom";
 
 import svgPaths from "@/lib/course-in-progress-svg-paths";
 
 const ASSETS = "/assets/course-in-progress";
 
-/** One possible emotion state for a persona, with the avatar image to show for that state. */
-export type EmotionOption = {
-  emotion: string;
-  image: string;
-};
+// --- Layout Configuration ---
 
-type Persona = {
-  name: string;
-  emotion: string;
-  action: string;
-  /** Available emotion states and the avatar image to render for each (e.g. neutral, happy). Use first entry as current; later you can add currentEmotionIndex or currentEmotion key to pick one. */
-  possibleEmotions: Record<string, string>;
-  /** "positive" = green frame; otherwise use sidebarFrameBg + this as border color (e.g. #f16e04). */
-  sidebarFrameVariant: "positive" | string;
-  /** rgba() for non-positive sidebar frame background, e.g. "rgba(241,110,4,0.2)". */
-  sidebarFrameBg?: string;
-  /** Tailwind/bracket color for emotion tag, e.g. "bg-[#f16e04]" */
-  emotionTagClass: string;
-  /** Tailwind/bracket color for action tag */
-  actionTagClass: string;
-  /** Show the "flag for attention" arrow in the sidebar list (e.g. needs intervention) */
-  showAttentionArrow?: boolean;
-  /** Optional classroom layout; when set, this persona is rendered on the classroom grid */
-  classroom?: {
-    containerLeft: string;
-    containerTop: string;
-    avatarLeft: string;
-    avatarTop: string;
-    avatarSize: string;
-    labelLeft: string;
-    labelTop: string;
-    deskType: "school" | "student";
-    deskLeft: string;
-    deskTop: string;
-    showFatigueBadge?: boolean;
-  };
-};
-
-const PERSONAS: Persona[] = [
+const SEAT_CONFIGS = [
   {
-    name: "Steven",
-    emotion: "neutral",
-    action: "Confusion",
-    possibleEmotions: { neutral: "avatar1.png" },
-    sidebarFrameVariant: "#f16e04",
-    sidebarFrameBg: "rgba(241,110,4,0.2)",
-    emotionTagClass: "bg-[#f16e04]",
-    actionTagClass: "bg-[#f1b903]",
-    classroom: {
-      containerLeft: "624px",
-      containerTop: "104.5px",
-      avatarLeft: "649px",
-      avatarTop: "153px",
-      avatarSize: "size-[99px]",
-      labelLeft: "672px",
-      labelTop: "104.5px",
-      deskType: "student",
-      deskLeft: "624px",
-      deskTop: "216px",
-      showFatigueBadge: true,
-    },
-    showAttentionArrow: true,
+    containerLeft: "624px",
+    containerTop: "24.5px",
+    avatarLeft: "649px",
+    avatarTop: "73px",
+    avatarSize: "size-[99px]",
+    labelLeft: "672px",
+    labelTop: "24.5px",
+    deskType: "student" as const,
+    deskLeft: "624px",
+    deskTop: "136px",
   },
   {
-    name: "Emma",
-    emotion: "neutral",
-    action: "Short attention span",
-    possibleEmotions: { neutral: "avatar2.png" },
-    sidebarFrameVariant: "#04a2f1",
-    sidebarFrameBg: "rgba(4,162,241,0.2)",
-    emotionTagClass: "bg-[#04a2f1]",
-    actionTagClass: "bg-[#f1b903]",
-    classroom: {
-      containerLeft: "70px",
-      containerTop: "211.5px",
-      avatarLeft: "105px",
-      avatarTop: "237px",
-      avatarSize: "size-[99px]",
-      labelLeft: "155px",
-      labelTop: "211.5px",
-      deskType: "school",
-      deskLeft: "70px",
-      deskTop: "287px",
-    },
+    containerLeft: "70px",
+    containerTop: "131.5px",
+    avatarLeft: "105px",
+    avatarTop: "157px",
+    avatarSize: "size-[99px]",
+    labelLeft: "155px",
+    labelTop: "131.5px",
+    deskType: "school" as const,
+    deskLeft: "70px",
+    deskTop: "207px",
   },
   {
-    name: "Bence",
-    emotion: "neutral",
-    action: "Proactive",
-    possibleEmotions: { neutral: "avatar3.png" },
-    sidebarFrameVariant: "positive",
-    emotionTagClass: "bg-[#05c770]",
-    actionTagClass: "bg-[#05c770]",
-    classroom: {
-      containerLeft: "438px",
-      containerTop: "197px",
-      avatarLeft: "473px",
-      avatarTop: "217.5px",
-      avatarSize: "size-[99px]",
-      labelLeft: "523.5px",
-      labelTop: "197px",
-      deskType: "school",
-      deskLeft: "438px",
-      deskTop: "263.5px",
-    },
+    containerLeft: "438px",
+    containerTop: "117px",
+    avatarLeft: "473px",
+    avatarTop: "137.5px",
+    avatarSize: "size-[99px]",
+    labelLeft: "523.5px",
+    labelTop: "117px",
+    deskType: "school" as const,
+    deskLeft: "438px",
+    deskTop: "183.5px",
   },
   {
-    name: "Anna",
-    emotion: "neutral",
-    action: "Proactive",
-    possibleEmotions: { neutral:  "avatar4.png" } ,
-    sidebarFrameVariant: "positive",
-    emotionTagClass: "bg-[#05c770]",
-    actionTagClass: "bg-[#05c770]",
-    classroom: {
-      containerLeft: "254px",
-      containerTop: "133px",
-      avatarLeft: "279px",
-      avatarTop: "155.5px",
-      avatarSize: "size-[99px]",
-      labelLeft: "329px",
-      labelTop: "133px",
-      deskType: "student",
-      deskLeft: "254px",
-      deskTop: "209.5px",
-    },
+    containerLeft: "254px",
+    containerTop: "53px",
+    avatarLeft: "279px",
+    avatarTop: "75.5px",
+    avatarSize: "size-[99px]",
+    labelLeft: "329px",
+    labelTop: "53px",
+    deskType: "student" as const,
+    deskLeft: "254px",
+    deskTop: "129.5px",
   },
+  {
+    containerLeft: "800px",
+    containerTop: "131.5px",
+    avatarLeft: "835px",
+    avatarTop: "157px",
+    avatarSize: "size-[99px]",
+    labelLeft: "885px",
+    labelTop: "131.5px",
+    deskType: "school" as const,
+    deskLeft: "800px",
+    deskTop: "207px",
+  },
+  {
+    containerLeft: "300px",
+    containerTop: "220px",
+    avatarLeft: "335px",
+    avatarTop: "245px",
+    avatarSize: "size-[99px]",
+    labelLeft: "385px",
+    labelTop: "220px",
+    deskType: "school" as const,
+    deskLeft: "300px",
+    deskTop: "296px",
+  },
+  {
+    containerLeft: "550px",
+    containerTop: "220px",
+    avatarLeft: "585px",
+    avatarTop: "245px",
+    avatarSize: "size-[99px]",
+    labelLeft: "635px",
+    labelTop: "220px",
+    deskType: "school" as const,
+    deskLeft: "550px",
+    deskTop: "296px",
+  },
+  {
+    containerLeft: "100px",
+    containerTop: "320px",
+    avatarLeft: "135px",
+    avatarTop: "345px",
+    avatarSize: "size-[99px]",
+    labelLeft: "185px",
+    labelTop: "320px",
+    deskType: "student" as const,
+    deskLeft: "100px",
+    deskTop: "401px",
+  }
 ];
+
+// --- Components ---
 
 function AttendeeAvatarFrame({ children }: React.PropsWithChildren) {
   return (
@@ -286,9 +265,7 @@ function ClassroomGridRow({ additionalClassNames = "" }: ClassroomGridRowProps) 
 }
 
 type StudentAvatarProps = {
-  /** Avatar image filename (e.g. from persona.possibleEmotions[current].image). */
   image: string;
-  /** Accessible label, e.g. persona name. */
   alt?: string;
   additionalClassNames?: string;
   style?: React.CSSProperties;
@@ -297,12 +274,11 @@ type StudentAvatarProps = {
 function StudentAvatar({ image, alt = "", additionalClassNames = "", style }: StudentAvatarProps) {
   return (
     <div className={clsx("absolute", additionalClassNames)} style={style}>
-      <NextImage
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
         alt={alt}
         className="absolute inset-0 max-w-none object-cover pointer-events-none size-full"
-        src={`${ASSETS}/${image}`}
-        width={99}
-        height={99}
+        src={image}
       />
     </div>
   );
@@ -390,9 +366,28 @@ function NavLogo() {
   );
 }
 
-export default function CourseInProgressPage() {
+export default function CourseInProgressPage({ params }: { params: { id?: string } }) {
   const router = useRouter();
   const { teacherProfile, hasHydrated } = useProfileStore();
+  
+  // --- Simulation Logic ---
+  const { classState, roundHistory, updateFromRound, isProcessing, reset, loadSession } = useClassStore(); // Added loadSession
+  const [partialText, setPartialText] = useState("");
+  const [isListening, setIsListening] = useState(false);
+  const classStateRef = useRef<ClassState | null>(null);
+  const roundQueueRef = useRef<string[]>([]);
+  const roundInFlightRef = useRef(false);
+
+  // If ID is provided in URL, try to load that session
+  useEffect(() => {
+      if (params?.id) {
+          loadSession(params.id);
+      }
+  }, [params?.id, loadSession]);
+
+  useEffect(() => {
+    classStateRef.current = classState;
+  }, [classState]);
 
   useEffect(() => {
     if (!hasHydrated) return;
@@ -400,6 +395,121 @@ export default function CourseInProgressPage() {
       router.replace("/profile-chat");
     }
   }, [hasHydrated, teacherProfile, router]);
+
+  // Connect transcription hook
+  const { start, stop } = useTranscription(
+    (text) => setPartialText(text),
+    (sentence) => enqueueTeacherSentence(sentence)
+  );
+
+  const handleToggleListening = async () => {
+    if (isListening) {
+      stop();
+      setIsListening(false);
+      setPartialText("");
+    } else {
+      setIsListening(true);
+      await start();
+    }
+  };
+
+  const enqueueTeacherSentence = (sentence: string) => {
+    const trimmed = sentence?.trim() ?? "";
+    if (trimmed.length < 2) {
+      console.log("Skipping short/empty input:", sentence);
+      return;
+    }
+
+    roundQueueRef.current.push(trimmed);
+    processNextRound();
+  };
+
+  const processNextRound = async () => {
+    if (roundInFlightRef.current) return;
+    const classStateSnapshot = classStateRef.current;
+    if (!classStateSnapshot) return;
+
+    const requestId =
+      typeof crypto !== "undefined" && "randomUUID" in crypto
+        ? crypto.randomUUID()
+        : `round_${Date.now()}`;
+
+    const startedAt = Date.now();
+    const sentence = (roundQueueRef.current.shift() ?? "").trim();
+    if (!sentence) return;
+
+    roundInFlightRef.current = true;
+    useClassStore.setState({ isProcessing: true });
+    
+    try {
+      const res = await fetch("/api/round", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-round-request-id": requestId,
+        },
+        body: JSON.stringify({ sentence, classState: classStateSnapshot }),
+      });
+
+      if (!res.ok) throw new Error("Round processing failed");
+
+      const data = await res.json();
+      updateFromRound(data.classState, data.orchestrator_output);
+      setPartialText(""); 
+    } catch (error) {
+      console.error("[ROUND ERROR]", error);
+    } finally {
+      roundInFlightRef.current = false;
+      useClassStore.setState({ isProcessing: false });
+      processNextRound();
+    }
+  };
+
+  // --- Data Mapping ---
+
+  if (!classState) {
+    return (
+      <div className="flex h-screen items-center justify-center flex-col gap-4">
+        <p className="text-xl font-bold">No active class session found.</p>
+        <Link href="/test-room" className="text-blue-600 hover:underline">
+          Go to Room Generation
+        </Link>
+      </div>
+    );
+  }
+
+  const students = Object.values(classState.students).map((s, index) => {
+      // Map simulation state to visual props
+      const isPositive = s.state.mood === 'happy' || s.state.mood === 'excited' || s.state.understanding > 80;
+      const sidebarColor = isPositive ? "positive" : "#f16e04"; // Simplified color logic
+      const sidebarBg = isPositive ? undefined : "rgba(241,110,4,0.2)";
+
+      // Assign seat if available
+      const classroom = SEAT_CONFIGS[index] ? {
+          ...SEAT_CONFIGS[index],
+          showFatigueBadge: s.state.energy < 0.4
+      } : undefined;
+
+      return {
+          id: s.persona.identity.name, // Use name as ID for key
+          name: s.persona.identity.name,
+          emotion: s.state.mood,
+          action: s.state.status,
+          image: getAvatarImage(s.avatarId || 'amara', s.state.mood, s.state.status),
+          sidebarFrameVariant: sidebarColor,
+          sidebarFrameBg: sidebarBg,
+          emotionTagClass: isPositive ? "bg-[#05c770]" : "bg-[#f16e04]",
+          actionTagClass: "bg-[#f1b903]",
+          classroom,
+          showAttentionArrow: s.state.status === 'hand_raised' || s.state.attention < 30
+      };
+  });
+
+  const latestLog = classState.class_log.length > 0 
+    ? classState.class_log[classState.class_log.length - 1] 
+    : null;
+
+  const isTeacherSpeaking = isListening || (latestLog?.type === 'teacher' && isProcessing);
 
   return (
     <div
@@ -446,7 +556,7 @@ export default function CourseInProgressPage() {
         <div className="content-stretch flex items-start max-w-[inherit] px-[32px] relative w-full">
           <p className="font-normal leading-[0] relative shrink-0 text-[0px] text-[14px] text-black uppercase">
             <span className="leading-[1.2]">{`MY LEARNING > TRAININGS > SKILL GAPS > `}</span>
-            <span className="font-bold leading-[1.2]">CLASS NO 3</span>
+            <span className="font-bold leading-[1.2]">CLASS NO {classState.round_num}</span>
           </p>
         </div>
       </div>
@@ -457,93 +567,68 @@ export default function CourseInProgressPage() {
               <CourseInfoCard>
                 <div className="content-stretch flex flex-col gap-[8px] items-start leading-[1.2] relative shrink-0">
                   <p className="font-normal relative shrink-0 text-[12px] text-[rgba(0,0,0,0.7)] uppercase">
-                    Class no 3:{" "}
+                    Class no {classState.round_num}:{" "}
                   </p>
                   <p className="font-bold relative shrink-0 text-[#01a65c] text-[24px]">
-                    Calculus - Intermediate
+                    {classState.topic}
                   </p>
                   <p className="font-medium min-w-full relative shrink-0 text-[14px] text-black w-[min-content] whitespace-pre-wrap">
-                    Calculate the slope of a linear function
+                    {/* Placeholder for objective - could come from store */}
+                    Active Session
                   </p>
                 </div>
                 <div className="content-stretch flex flex-col gap-[8px] items-start relative shrink-0">
                   <p className="font-normal leading-[1.2] relative shrink-0 text-[12px] text-[rgba(0,0,0,0.7)] uppercase">
-                    Difficulty
+                    Status
                   </p>
                   <div className="content-stretch flex gap-[4px] items-start relative shrink-0">
-                    <StatusTag text="Huge skill gaps" additionalClassNames="bg-[#f13704]" />
-                    <StatusTag text="Medium topic" additionalClassNames="bg-[#f1b903]" />
+                    <StatusTag text={isProcessing ? "Processing..." : "Active"} additionalClassNames={isProcessing ? "bg-blue-500" : "bg-green-500"} />
                   </div>
                 </div>
-                <div className="content-stretch flex flex-col gap-[8px] items-start relative shrink-0">
-                  <p className="font-normal leading-[1.2] relative shrink-0 text-[12px] text-[rgba(0,0,0,0.7)] uppercase">
-                    Skills
-                  </p>
-                  <div className="content-stretch flex gap-[4px] items-start relative shrink-0">
-                    <StatusTag text="Adaptability" additionalClassNames="bg-[#031bf1]" />
-                    <StatusTag text="Clarity" additionalClassNames="bg-[#f1044f]" />
-                  </div>
-                </div>
-                <div className="relative shrink-0 w-full" data-name="Button">
+                
+                {/* Microphone Button */}
+                <div className="relative shrink-0 w-full mt-4 cursor-pointer" onClick={handleToggleListening}>
                   <div
                     aria-hidden
-                    className="absolute border border-[#f13704] border-solid inset-0 pointer-events-none"
+                    className={clsx(
+                        "absolute border border-solid inset-0 pointer-events-none transition-colors",
+                        isListening ? "border-red-500 bg-red-50" : "border-[#05c770]"
+                    )}
                   />
                   <div className="flex flex-row items-center justify-center size-full">
                     <div className="content-stretch flex gap-[10px] items-center justify-center px-[16px] py-[12px] relative w-full">
-                      <div
-                        className="overflow-clip relative shrink-0 size-[20px]"
-                        data-name="player-stop-filled"
-                      >
-                        <div className="absolute inset-[16.67%]" data-name="Vector">
-                          <svg
-                            className="absolute block size-full"
-                            fill="none"
-                            preserveAspectRatio="none"
-                            viewBox="0 0 13.3333 13.3333"
-                          >
-                            <path
-                              d={svgPaths.p3968aa00}
-                              fill="var(--fill-0, #F13704)"
-                              id="Vector"
-                            />
-                          </svg>
-                        </div>
+                      <div className="relative shrink-0 size-[24px]">
+                         {isListening ? <MicOff className="text-red-500" /> : <Mic className="text-[#05c770]" />}
                       </div>
-                      <p className="font-extrabold leading-[1.2] not-italic relative shrink-0 text-[#f13704] text-[16px] uppercase">
-                        Stop class
+                      <p className={clsx(
+                          "font-extrabold leading-[1.2] not-italic relative shrink-0 text-[16px] uppercase select-none",
+                          isListening ? "text-red-500" : "text-[#05c770]"
+                      )}>
+                        {isListening ? "Stop Microphone" : "Start Microphone"}
                       </p>
                     </div>
                   </div>
                 </div>
+                
+                {/* Transcription Preview */}
+                {partialText && (
+                    <div className="w-full p-2 bg-gray-50 text-sm italic border-l-4 border-blue-500">
+                        &quot;{partialText}&quot;
+                    </div>
+                )}
+
               </CourseInfoCard>
-              <CourseInfoCard>
-                <div className="content-stretch flex flex-col gap-[8px] items-start leading-[1.2] relative shrink-0 w-full">
-                  <p className="font-normal relative shrink-0 text-[12px] text-[rgba(0,0,0,0.7)] uppercase">
-                    Goal
-                  </p>
-                  <p className="font-bold min-w-full relative shrink-0 text-[16px] text-black w-[min-content] whitespace-pre-wrap">
-                    Every student should be flagged with a green color by the end
-                    of the class (2/4)
-                  </p>
-                </div>
-                <div className="content-stretch flex gap-[4px] items-start relative shrink-0 w-full">
-                  <GoalProgressSegment additionalClassNames="bg-[#f16e04]" />
-                  <GoalProgressSegment additionalClassNames="bg-[#04a2f1]" />
-                  <GoalProgressSegment additionalClassNames="bg-[#05c770]" />
-                  <GoalProgressSegment additionalClassNames="bg-[#05c770]" />
-                </div>
-              </CourseInfoCard>
+              
               <CourseInfoCard>
                 <div className="content-stretch flex flex-col gap-[4px] items-start leading-[1.2] relative shrink-0 text-right">
                   <p className="font-medium relative shrink-0 text-[16px] text-black uppercase">
-                    Attendees
+                    Attendees ({students.length})
                   </p>
                   <p className="font-normal relative shrink-0 text-[12px] text-[rgba(0,0,0,0.7)]">
                     View and monitor current attendees
                   </p>
                 </div>
-                {PERSONAS.map((persona) => (
+                {students.map((persona) => (
                   <div
                     key={persona.name}
                     className="content-stretch flex gap-[8px] items-center relative shrink-0 w-full"
@@ -551,7 +636,7 @@ export default function CourseInProgressPage() {
                     {persona.sidebarFrameVariant === "positive" ? (
                       <AttendeeAvatarFrame>
                         <StudentAvatar
-                          image={persona.possibleEmotions[`${persona.emotion.toLowerCase()}`]}
+                          image={persona.image}
                           alt={persona.name}
                           additionalClassNames="left-0 size-[47.52px] top-[0.24px]"
                         />
@@ -565,7 +650,7 @@ export default function CourseInProgressPage() {
                       >
                         <div className="overflow-clip relative rounded-[inherit] size-full">
                           <StudentAvatar
-                            image={persona.possibleEmotions[`${persona.emotion.toLowerCase()}`]}
+                            image={persona.image}
                             alt={persona.name}
                             additionalClassNames="left-0 size-[47.52px] top-[0.24px]"
                           />
@@ -595,48 +680,10 @@ export default function CourseInProgressPage() {
                       </div>
                     </div>
                     {persona.showAttentionArrow && (
-                      <div
-                        className="overflow-clip relative shrink-0 size-[24px]"
-                        data-name="arrow-big-up-lines-filled"
-                      >
-                        <div
-                          className="absolute inset-[10.06%_14.23%_8.33%_14.22%]"
-                          data-name="Vector"
-                        >
-                          <svg
-                            className="absolute block size-full"
-                            fill="none"
-                            preserveAspectRatio="none"
-                            viewBox="0 0 17.1718 19.5856"
-                          >
-                            <g id="Vector">
-                              <path
-                                d={svgPaths.p2e096400}
-                                fill="var(--fill-0, #F13704)"
-                              />
-                              <path
-                                d={svgPaths.p289ac6f0}
-                                fill="var(--fill-0, #F13704)"
-                              />
-                              <path
-                                d={svgPaths.p35ca1480}
-                                fill="var(--fill-0, #F13704)"
-                              />
-                              <path
-                                d={svgPaths.p2e096400}
-                                stroke="var(--stroke-0, #F13704)"
-                              />
-                              <path
-                                d={svgPaths.p289ac6f0}
-                                stroke="var(--stroke-0, #F13704)"
-                              />
-                              <path
-                                d={svgPaths.p35ca1480}
-                                stroke="var(--stroke-0, #F13704)"
-                              />
-                            </g>
-                          </svg>
-                        </div>
+                      <div className="overflow-clip relative shrink-0 size-[24px]">
+                        <svg className="w-full h-full text-red-500" viewBox="0 0 24 24" fill="currentColor">
+                           <path d="M12 2L15 8L21 9L17 14L18 20L12 17L6 20L7 14L3 9L9 8L12 2Z" />
+                        </svg>
                       </div>
                     )}
                   </div>
@@ -662,9 +709,11 @@ export default function CourseInProgressPage() {
                   <ClassroomGridRow additionalClassNames="h-[61px]" />
                   <ClassroomGridRowOffset />
                 </div>
-                {PERSONAS.filter((p) => p.classroom).map((persona) => {
+                
+                {/* Dynamic Students on Grid */}
+                {students.filter((p) => p.classroom).map((persona) => {
                 const c = persona.classroom!;
-                const isCenterLabel = persona.name === "Emma" || persona.name === "Bence";
+                const isCenterLabel = false; // Simplified
                 const DeskComponent = c.deskType === "school" ? SchoolDeskImage : StudentDeskImage;
                 return (
                   <div
@@ -673,7 +722,7 @@ export default function CourseInProgressPage() {
                     style={{ left: c.containerLeft, top: c.containerTop }}
                   >
                     <StudentAvatar
-                      image={persona.possibleEmotions[`${persona.emotion.toLowerCase()}`]}
+                      image={persona.image}
                       alt={persona.name}
                       additionalClassNames={c.avatarSize}
                       style={{ left: c.avatarLeft, top: c.avatarTop }}
@@ -702,6 +751,7 @@ export default function CourseInProgressPage() {
                   </div>
                 );
               })}
+              
                 <div className="absolute h-[317px] left-[103px] top-[410px] w-[634px] max-w-[calc(100%-206px)]">
                   <div
                     className="-translate-x-1/2 absolute h-[317px] left-1/2 top-0 w-[634px] max-w-full"
@@ -716,10 +766,24 @@ export default function CourseInProgressPage() {
                     />
                   </div>
                   <div className="absolute font-normal leading-[1.6] left-[153.24px] text-[18.716px] text-black top-[102.94px] whitespace-nowrap">
-                    <p className="mb-0">{`While this topic hasn't been `}</p>
-                    <p className="mb-0">brought to the table so far.</p>
-                    <p className="mb-0">We should Aim at executing</p>
-                    <p className="mb-0">....</p>
+                    {partialText ? (
+                        <>
+                            <p className="mb-0 font-bold text-blue-800">Teacher (speaking):</p>
+                            <p className="mb-0 max-w-[300px] whitespace-pre-wrap line-clamp-4 italic">{partialText}...</p>
+                        </>
+                    ) : latestLog && latestLog.type === 'teacher' ? (
+                        <>
+                            <p className="mb-0 font-bold text-blue-800">Teacher:</p>
+                            <p className="mb-0 max-w-[300px] whitespace-pre-wrap line-clamp-4">{latestLog.content}</p>
+                        </>
+                    ) : latestLog && latestLog.type === 'student' ? (
+                        <>
+                            <p className="mb-0 font-bold text-green-800">{latestLog.speaker}:</p>
+                            <p className="mb-0 max-w-[300px] whitespace-pre-wrap line-clamp-4">{latestLog.content}</p>
+                        </>
+                    ) : (
+                        <p className="mb-0 italic text-gray-500">Class started...</p>
+                    )}
                   </div>
                   <div className="absolute bg-[#f13704] content-stretch flex gap-[4.679px] items-center justify-center left-[153.24px] px-[7.018px] py-[4.679px] top-[56.15px]">
                     <div className="bg-white shrink-0 size-[11.697px]" />
@@ -728,34 +792,24 @@ export default function CourseInProgressPage() {
                     </p>
                   </div>
                 </div>
-                <div className="absolute bg-white left-[16px] top-[16px] w-[400px] max-w-[calc(100%-32px)]">
-                  <div className="content-stretch flex flex-col gap-[8px] items-start overflow-clip p-[8px] relative rounded-[inherit] w-full">
-                    <div className="content-stretch flex h-[18px] items-center justify-center relative shrink-0">
-                      <svg width="45" height="18" viewBox="0 0 60 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="block shrink-0" aria-hidden preserveAspectRatio="xMidYMid meet">
-                        <rect width="33.0909" height="24" fill="#F1B903" />
-                        <rect x="2.90894" y="2.9091" width="9.09091" height="9.09091" fill="#011627" />
-                        <rect x="2.90918" y="12" width="9.09091" height="9.09091" fill="#013B52" />
-                        <rect x="12" y="2.909" width="9.09091" height="9.09091" fill="#013B52" />
-                        <rect x="12" y="12" width="9.09091" height="9.09091" fill="#011627" />
-                        <rect x="21.0909" y="2.909" width="9.09091" height="9.09091" fill="#011627" />
-                        <rect x="21.0909" y="12" width="9.09091" height="9.09091" fill="#013B52" />
-                        <rect x="9.81812" y="9.81821" width="4.28452" height="4.28452" fill="white" />
-                        <rect x="18.9089" y="9.81824" width="4.28452" height="4.28452" fill="white" />
-                        <path d="M37.5949 20.5L42.3949 3.7H46.9549L51.7309 20.5H49.0669L47.9629 16.54H41.3869L40.2829 20.5H37.5949ZM42.0349 14.14H47.3149L44.8669 5.308H44.4829L42.0349 14.14ZM54.007 20.5V3.7H56.599V20.5H54.007Z" fill="black" />
-                      </svg>
+                
+                {/* Latest Event Bubble (e.g. confusion) */}
+                {students.some(s => s.action === 'confused' || s.action === 'hand_raised') && (
+                    <div className="absolute bg-white left-[16px] top-[16px] w-[400px] max-w-[calc(100%-32px)]">
+                    <div className="content-stretch flex flex-col gap-[8px] items-start overflow-clip p-[8px] relative rounded-[inherit] w-full">
+                        <div className="content-stretch flex flex-col items-start relative shrink-0">
+                        <p className="font-bold leading-[1.2] relative shrink-0 text-[16px] text-black">
+                            Some students seem confused or have questions.
+                        </p>
+                        </div>
+                        <StatusTag text="Alert" additionalClassNames="bg-[#f1044f]" />
                     </div>
-                    <div className="content-stretch flex flex-col items-start relative shrink-0">
-                      <p className="font-bold leading-[1.2] relative shrink-0 text-[16px] text-black">
-                        The slope calculation part was a bit too fast
-                      </p>
+                    <div
+                        aria-hidden
+                        className="absolute border border-[#f1b903] border-solid inset-0 pointer-events-none"
+                    />
                     </div>
-                    <StatusTag text="Clarity" additionalClassNames="bg-[#f1044f]" />
-                  </div>
-                  <div
-                    aria-hidden
-                    className="absolute border border-[#f1b903] border-solid inset-0 pointer-events-none"
-                  />
-                </div>
+                )}
               </div>
               <div
                 aria-hidden

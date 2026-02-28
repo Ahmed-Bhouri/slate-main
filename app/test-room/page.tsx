@@ -28,17 +28,31 @@ export default function RoomTestPage() {
 
   const handleResumeSession = (sessionId: string) => {
     loadSession(sessionId);
-    window.location.href = "/test-simulation";
+    window.location.href = `/course-in-progress/${sessionId}`;
   };
 
   const handleStartSimulation = (challenge: any, personas: any[]) => {
       // 1. Build ClassState
       const students: Record<string, Student> = {};
+      const allAvatars = ['amara', 'bence', 'mate', 'sofia'];
+      let availableAvatars = [...allAvatars];
+
       personas.forEach((persona, index) => {
           const safeName = persona.identity.name.toLowerCase().replace(/\s+/g, '_');
           const id = `${safeName}_${index}`;
+          
+          // Refill pool if empty to ensure variety
+          if (availableAvatars.length === 0) {
+              availableAvatars = [...allAvatars];
+          }
+          
+          // Pick a random index from the available avatars
+          const randomIndex = Math.floor(Math.random() * availableAvatars.length);
+          const avatarId = availableAvatars.splice(randomIndex, 1)[0];
+          
           students[id] = {
               persona,
+              avatarId,
               state: {
                   attention: 75,
                   understanding: 50,
@@ -70,7 +84,7 @@ export default function RoomTestPage() {
       initializeClass(classState);
 
       // 3. Redirect
-      window.location.href = "/test-simulation";
+      window.location.href = `/course-in-progress/${classState.session_id}`;
   };
 
   const handleGeneratePersonas = async (challenge: any) => {

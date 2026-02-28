@@ -63,6 +63,7 @@ export interface Persona {
 export interface Student {
   persona: Persona
   state: StudentState
+  avatarId?: string // Optional for backward compatibility, but we will populate it
 }
 
 export interface StudentState {

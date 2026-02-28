@@ -104,6 +104,12 @@ export const useClassStore = create<ClassStore>()(
               roundHistory: session.roundHistory,
               isProcessing: false
             })
+          } else {
+            set({
+              classState: null,
+              roundHistory: [],
+              isProcessing: false
+            })
           }
         },
 
