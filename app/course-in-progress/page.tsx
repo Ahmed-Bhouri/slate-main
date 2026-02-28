@@ -5,8 +5,8 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 import clsx from "clsx";
+import { useProfileStore } from "@/stores/profileStore";
 
-const PROFILE_STORAGE_KEY = "slate-teacher-profile";
 import svgPaths from "@/lib/course-in-progress-svg-paths";
 
 const ASSETS = "/assets/course-in-progress";
@@ -392,22 +392,14 @@ function NavLogo() {
 
 export default function CourseInProgressPage() {
   const router = useRouter();
+  const { teacherProfile, hasHydrated } = useProfileStore();
+
   useEffect(() => {
-    if (typeof window === "undefined") return;
-    try {
-      const raw = localStorage.getItem(PROFILE_STORAGE_KEY);
-      if (!raw) {
-        router.replace("/profile-chat");
-        return;
-      }
-      const parsed = JSON.parse(raw) as unknown;
-      if (!parsed || typeof parsed !== "object") {
-        router.replace("/profile-chat");
-      }
-    } catch {
+    if (!hasHydrated) return;
+    if (!teacherProfile) {
       router.replace("/profile-chat");
     }
-  }, [router]);
+  }, [hasHydrated, teacherProfile, router]);
 
   return (
     <div

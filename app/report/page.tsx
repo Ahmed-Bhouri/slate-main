@@ -68,19 +68,14 @@ function Section({
 export default function ReportPage() {
   const router = useRouter();
   const { classState, getKPIs, reset: resetClass } = useClassStore();
-  const { teacherProfile, setTeacherProfile } = useProfileStore();
-
-  const [report, setReport] = useState<ReportData | null>(null);
+  const { teacherProfile, setTeacherProfile, hasHydrated } = useProfileStore();
+  
+  const [report, setReport] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [isHydrated, setIsHydrated] = useState(false);
 
   useEffect(() => {
-    setIsHydrated(true);
-  }, []);
-
-  useEffect(() => {
-    if (!isHydrated) return;
+    if (!hasHydrated) return;
 
     async function fetchReport() {
       if (!classState || !teacherProfile) {
@@ -120,7 +115,7 @@ export default function ReportPage() {
     }
 
     fetchReport();
-  }, [isHydrated, classState, teacherProfile, getKPIs, setTeacherProfile]);
+  }, [hasHydrated, classState, teacherProfile, getKPIs, setTeacherProfile]);
 
   const handleStartNewSession = () => {
     resetClass();
@@ -165,7 +160,7 @@ export default function ReportPage() {
     </div>
   );
 
-  if (isLoading || !isHydrated) {
+  if (isLoading || !hasHydrated) {
     return (
       <div className="bg-white flex flex-col gap-[12px] items-center min-h-screen w-full pb-[80px]">
         {navBar}

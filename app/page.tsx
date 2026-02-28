@@ -12,26 +12,10 @@ import {
   type ClassCardData,
   type ClassScenarioChallenge,
 } from "@/lib/class-cards";
-import {
-  getCachedClassScenario,
-  setCachedClassScenario,
-} from "@/lib/class-scenario-cache";
+import { useProfileStore } from "@/stores/profileStore";
 import { ClassCard } from "@/components/class-card";
 
-const PROFILE_STORAGE_KEY = "slate-teacher-profile";
-
-function loadProfileFromStorage(): object | null {
-  if (typeof window === "undefined") return null;
-  try {
-    const raw = localStorage.getItem(PROFILE_STORAGE_KEY);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw) as unknown;
-    return parsed && typeof parsed === "object" ? (parsed as object) : null;
-  } catch {
-    return null;
-  }
-}
-
+// loadProfileFromStorage removed
 function Wrapper1({ children }: React.PropsWithChildren) {
   return (
     <div className="overflow-clip rounded-[inherit] size-full">
@@ -310,26 +294,31 @@ export default function Home() {
   const [skillMetrics, setSkillMetrics] = useState<SkillMetric[]>(DEFAULT_SKILL_METRICS);
   const [personalCard, setPersonalCard] = useState<PersonalCardData>(DEFAULT_PERSONAL_CARD);
 
+  const { teacherProfile, classScenario, setClassScenario, hasHydrated } = useProfileStore();
+
   useEffect(() => {
-    const profile = loadProfileFromStorage();
-    if (!profile) {
+    if (!hasHydrated) return;
+
+    if (!teacherProfile) {
       router.replace("/profile-chat");
       return;
     }
-    setSkillMetrics(getSkillMetricsFromProfile(profile));
-    setPersonalCard(getPersonalCardFromProfile(profile));
-    const cached = getCachedClassScenario(profile);
-    if (cached && cached.length > 0) {
-      setClassCards(cached.map((c, i) => mapChallengeToClassCard(c, i)));
+
+    setSkillMetrics(getSkillMetricsFromProfile(teacherProfile));
+    setPersonalCard(getPersonalCardFromProfile(teacherProfile));
+
+    if (classScenario?.challenges && classScenario.challenges.length > 0) {
+      setClassCards(classScenario.challenges.map((c, i) => mapChallengeToClassCard(c, i)));
       setLoading(false);
       return;
     }
+
     let cancelled = false;
     setError(null);
     fetch("/api/class-scenario", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ profile }),
+      body: JSON.stringify({ profile: teacherProfile }),
     })
       .then((res) => {
         if (!res.ok) throw new Error(res.status === 400 ? "Invalid profile" : "Failed to load challenges");
@@ -340,7 +329,7 @@ export default function Home() {
         if (data.error) throw new Error(data.error);
         const challenges = data.classScenario?.challenges ?? [];
         if (challenges.length > 0) {
-          setCachedClassScenario(profile, challenges);
+          setClassScenario({ challenges });
           setClassCards(challenges.map((c, i) => mapChallengeToClassCard(c, i)));
         } else {
           setClassCards(DEFAULT_CLASS_CARDS);
@@ -358,7 +347,15 @@ export default function Home() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [hasHydrated, teacherProfile, classScenario, router, setClassScenario]);
+
+  if (!hasHydrated) {
+      return (
+        <div className="flex items-center justify-center min-h-screen bg-white">
+          <p className="text-gray-500">Loading...</p>
+        </div>
+      );
+  }
 
   return (
     <div
