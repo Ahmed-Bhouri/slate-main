@@ -29,7 +29,10 @@ yarn-error.log*
 .env*.local
 .env.dev
 .env.*.dev
+<<<<<<< HEAD
 .env
+=======
+>>>>>>> 1a3638c96eb4a9d7175d7ab7d7750f5098f569e8
 
 # typescript
 *.tsbuildinfo
