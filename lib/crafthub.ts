@@ -275,13 +275,33 @@ export async function generateTeacherProfileTurn(messages: ProfileTurnInput[]): 
   if (!messages.length) {
     messages = [{ role: "user", content: "I'd like to create my teacher profile." }];
   }
-  const response = await client.responses.create({
-    model: "gpt-4o-mini",
-    instructions: TEACHER_PROFILE_SYSTEM_PROMPT,
-    input: messages.map((m) => ({ role: m.role, content: m.content })),
-    stream: false,
-  });
-  const assistantMessage = (response as { output_text?: string }).output_text ?? "";
+  let assistantMessage = "";
+  try {
+    const response = await client.responses.create({
+      model: "gpt-5-mini",
+      instructions: TEACHER_PROFILE_SYSTEM_PROMPT,
+      input: messages.map((m) => ({ role: m.role, content: m.content })),
+      stream: false,
+    });
+    assistantMessage = (response as { output_text?: string }).output_text ?? "";
+    if (!assistantMessage && Array.isArray((response as { output?: Array<{ type?: string; content?: Array<{ type?: string; text?: string }> }> }).output)) {
+      const out = (response as { output: Array<{ type?: string; content?: Array<{ type?: string; text?: string }> }> }).output;
+      assistantMessage = out
+        .filter((o) => o.type === "message" && Array.isArray(o.content))
+        .flatMap((o) => (o.content ?? []).filter((c) => c.type === "output_text").map((c) => (c as { text?: string }).text ?? ""))
+        .join("");
+    }
+  } catch {
+    // Fallback for Azure OpenAI / endpoints that only support chat completions
+    const chat = await client.chat.completions.create({
+      model: "gpt-5-mini",
+      messages: [
+        { role: "system", content: TEACHER_PROFILE_SYSTEM_PROMPT },
+        ...messages.map((m) => ({ role: m.role as "user" | "assistant" | "system", content: m.content })),
+      ],
+    });
+    assistantMessage = chat.choices?.[0]?.message?.content ?? "";
+  }
   const profile = extractTeacherProfileJson(assistantMessage);
   return { assistantMessage, profile };
 }
@@ -294,7 +314,7 @@ export async function generateClassScenario(teacherProfile: object): Promise<Cla
   const userMessage = `Generate 3 or 4 challenges for this teacher (each targeting a different weakness):\n${profileJson}`;
 
   const response = await client.responses.create({
-    model: "gpt-4o-mini",
+    model: "gpt-5-mini",
     instructions: CLASS_SCENARIO_SYSTEM_PROMPT,
     input: [{ role: "user", content: userMessage }],
     stream: false,
@@ -334,7 +354,7 @@ export async function generatePersonas(
   const userContent = `Generate student personas from these constraints (output a JSON array of exactly ${cappedConstraints.num_students_needed} persona objects):\n${JSON.stringify(inputPayload, null, 2)}`;
 
   const response = await client.responses.create({
-    model: "gpt-4o-mini",
+    model: "gpt-5-mini",
     instructions: PERSONAS_SYSTEM_PROMPT,
     input: [{ role: "user", content: userContent }],
     stream: false,
