@@ -275,12 +275,15 @@ export async function generateTeacherProfileTurn(messages: ProfileTurnInput[]): 
   if (!messages.length) {
     messages = [{ role: "user", content: "I'd like to create my teacher profile." }];
   }
-  const response = await client.responses.create({
-    model: "gpt-4o-mini",
-    instructions: TEACHER_PROFILE_SYSTEM_PROMPT,
-    input: messages.map((m) => ({ role: m.role, content: m.content })),
+  const completion = await client.chat.completions.create({
+    model: "gpt-5-mini",
+    messages: [
+      { role: "system", content: TEACHER_PROFILE_SYSTEM_PROMPT },
+      ...messages.map((m) => ({ role: m.role, content: m.content })),
+    ],
     stream: false,
   });
+  const response = { output_text: completion.choices[0]?.message?.content || "" };
   const assistantMessage = (response as { output_text?: string }).output_text ?? "";
   const profile = extractTeacherProfileJson(assistantMessage);
   return { assistantMessage, profile };
@@ -293,19 +296,24 @@ export async function generateClassScenario(teacherProfile: object): Promise<Cla
   const profileJson = JSON.stringify(teacherProfile, null, 2);
   const userMessage = `Generate 3 or 4 challenges for this teacher (each targeting a different weakness):\n${profileJson}`;
 
-  const response = await client.responses.create({
-    model: "gpt-4o-mini",
-    instructions: CLASS_SCENARIO_SYSTEM_PROMPT,
-    input: [{ role: "user", content: userMessage }],
+  const completion = await client.chat.completions.create({
+    model: "gpt-5-mini",
+    messages: [
+      { role: "system", content: CLASS_SCENARIO_SYSTEM_PROMPT },
+      { role: "user", content: userMessage },
+    ],
     stream: false,
   });
+  
+  const response = { output_text: completion.choices[0]?.message?.content || "" };
 
-  let outputText = (response as { output_text?: string }).output_text ?? "";
-  if (!outputText && Array.isArray((response as { output?: Array<{ type?: string; content?: Array<{ type?: string; text?: string }> }> }).output)) {
-    const out = (response as { output: Array<{ type?: string; content?: Array<{ type?: string; text?: string }> }> }).output;
+  let outputText = response.output_text;
+  // Fallback for different response shapes if needed, but chat completion is standard
+  if (!outputText && (response as any).output) {
+    const out = (response as any).output;
     outputText = out
-      .filter((o) => o.type === "message" && Array.isArray(o.content))
-      .flatMap((o) => (o.content ?? []).filter((c) => c.type === "output_text").map((c) => (c as { text?: string }).text ?? ""))
+      .filter((o: any) => o.type === "message" && Array.isArray(o.content))
+      .flatMap((o: any) => (o.content ?? []).filter((c: any) => c.type === "output_text").map((c: any) => (c as { text?: string }).text ?? ""))
       .join("");
   }
   const parsed = extractChallengeJson(outputText);
@@ -333,12 +341,16 @@ export async function generatePersonas(
   };
   const userContent = `Generate student personas from these constraints (output a JSON array of exactly ${cappedConstraints.num_students_needed} persona objects):\n${JSON.stringify(inputPayload, null, 2)}`;
 
-  const response = await client.responses.create({
-    model: "gpt-4o-mini",
-    instructions: PERSONAS_SYSTEM_PROMPT,
-    input: [{ role: "user", content: userContent }],
+  const completion = await client.chat.completions.create({
+    model: "gpt-5-mini",
+    messages: [
+      { role: "system", content: PERSONAS_SYSTEM_PROMPT },
+      { role: "user", content: userContent },
+    ],
     stream: false,
   });
+  
+  const response = { output_text: completion.choices[0]?.message?.content || "" };
 
   const outputText = (response as { output_text?: string }).output_text ?? "";
   const parsed = extractPersonasJson(outputText);

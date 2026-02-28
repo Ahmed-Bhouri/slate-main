@@ -53,11 +53,22 @@ export function useTranscription(
       const recognizer = new sdk.SpeechRecognizer(speechConfig, audioConfig)
       recognizerRef.current = recognizer
 
-      recognizer.recognizing = (_, e) => onPartial(e.result.text)
+      recognizer.recognizing = (_, e) => {
+        if (e.result.text) {
+             onPartial(e.result.text);
+        }
+      }
 
       recognizer.recognized = (_, e) => {
-        if (e.result.reason === sdk.ResultReason.RecognizedSpeech && e.result.text) {
-          onSentence(e.result.text)
+        if (e.result.reason === sdk.ResultReason.RecognizedSpeech) {
+          if (e.result.text && e.result.text.trim().length > 0) {
+            console.log('[RECOGNIZED]', e.result.text);
+            onSentence(e.result.text);
+          } else {
+             console.log('[RECOGNIZED] Empty or whitespace-only text ignored.');
+          }
+        } else if (e.result.reason === sdk.ResultReason.NoMatch) {
+            console.log('[NOMATCH] Speech could not be recognized.');
         }
       }
 
