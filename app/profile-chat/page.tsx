@@ -1,9 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
-
-const PROFILE_STORAGE_KEY = "slate-teacher-profile";
+import { useCallback, useState } from "react";
+import { useProfileStore } from "@/stores/profileStore";
 
 type Message = { role: "user" | "assistant"; content: string };
 
@@ -19,18 +18,6 @@ type StoredProfile = Record<string, unknown> & {
     assessment_targets?: Record<string, unknown>;
   };
 };
-
-function loadProfileFromStorage(): StoredProfile | null {
-  if (typeof window === "undefined") return null;
-  try {
-    const raw = localStorage.getItem(PROFILE_STORAGE_KEY);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw) as unknown;
-    return parsed && typeof parsed === "object" ? (parsed as StoredProfile) : null;
-  } catch {
-    return null;
-  }
-}
 
 /** Strip TEACHER_PROFILE_COMPLETE and JSON block for display. */
 function displayMessage(text: string): string {
@@ -168,13 +155,9 @@ export default function ProfileChatPage() {
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [profile, setProfile] = useState<StoredProfile | null>(null);
 
-  // Load profile from localStorage on mount
-  useEffect(() => {
-    const stored = loadProfileFromStorage();
-    if (stored?.teacher_profile) setProfile(stored);
-  }, []);
+  const { teacherProfile, setTeacherProfile, hasHydrated } = useProfileStore();
+  const profile = teacherProfile as StoredProfile | null;
 
   const sendTurn = useCallback(
     async (nextMessages: Message[]) => {
@@ -198,14 +181,7 @@ export default function ProfileChatPage() {
         setMessages([...nextMessages, { role: "assistant", content: assistantMessage }]);
         if (p && typeof p === "object") {
           const stored = p as StoredProfile;
-          setProfile(stored);
-          if (typeof window !== "undefined") {
-            try {
-              localStorage.setItem(PROFILE_STORAGE_KEY, JSON.stringify(stored));
-            } catch {
-              // ignore quota / private mode
-            }
-          }
+          setTeacherProfile(stored);
         }
       } catch (e) {
         setError(e instanceof Error ? e.message : "Something went wrong");
@@ -213,7 +189,7 @@ export default function ProfileChatPage() {
         setLoading(false);
       }
     },
-    []
+    [setTeacherProfile]
   );
 
   const handleStart = useCallback(() => {
@@ -221,10 +197,10 @@ export default function ProfileChatPage() {
       { role: "user", content: "I'd like to create my teacher profile." },
     ];
     setMessages(initial);
-    setProfile(null);
+    setTeacherProfile(null);
     setError(null);
     sendTurn(initial);
-  }, [sendTurn]);
+  }, [sendTurn, setTeacherProfile]);
 
   const handleSend = useCallback(() => {
     const trimmed = input.trim();
@@ -249,6 +225,7 @@ export default function ProfileChatPage() {
   );
 
   // Show filled profile from localStorage or API instead of chat
+  if (!hasHydrated) return null; // Wait for hydration
   if (profile?.teacher_profile) {
     return (
       <div className="bg-white flex flex-col gap-[12px] items-center pb-[80px] relative min-h-screen w-full">

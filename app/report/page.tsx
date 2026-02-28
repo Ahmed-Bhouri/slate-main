@@ -11,19 +11,14 @@ import { useRouter } from "next/navigation";
 export default function ReportPage() {
   const router = useRouter();
   const { classState, getKPIs, reset: resetClass } = useClassStore();
-  const { teacherProfile, setTeacherProfile } = useProfileStore();
+  const { teacherProfile, setTeacherProfile, hasHydrated } = useProfileStore();
   
   const [report, setReport] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [isHydrated, setIsHydrated] = useState(false);
 
   useEffect(() => {
-    setIsHydrated(true);
-  }, []);
-
-  useEffect(() => {
-    if (!isHydrated) return;
+    if (!hasHydrated) return;
 
     async function fetchReport() {
       if (!classState || !teacherProfile) {
@@ -65,9 +60,9 @@ export default function ReportPage() {
     }
 
     fetchReport();
-  }, [classState, teacherProfile, getKPIs, setTeacherProfile]);
+  }, [classState, teacherProfile, getKPIs, setTeacherProfile, hasHydrated]);
 
-  if (isLoading || !isHydrated) {
+  if (isLoading || !hasHydrated) {
     return (
       <div className="flex h-screen items-center justify-center flex-col gap-4">
         <Loader2 className="h-8 w-8 animate-spin text-blue-600" />

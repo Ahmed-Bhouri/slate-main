@@ -10,13 +10,21 @@ import { useClassStore } from "@/stores/classStore";
 import { ClassState, Student } from "@/types/classroom";
 
 export default function RoomTestPage() {
-  const { teacherProfile, classScenario } = useProfileStore();
+  const { teacherProfile, classScenario, hasHydrated } = useProfileStore();
   const { initializeClass, sessions, loadSession, deleteSession } = useClassStore(); // Updated
   const [personas, setPersonas] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [selectedChallengeId, setSelectedChallengeId] = useState<string | null>(null);
 
   const challenges = classScenario?.challenges || [];
+
+  if (!hasHydrated) {
+    return (
+        <div className="flex h-screen items-center justify-center">
+            <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+        </div>
+    );
+  }
 
   const handleResumeSession = (sessionId: string) => {
     loadSession(sessionId);
