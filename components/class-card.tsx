@@ -5,6 +5,10 @@ import Link from "next/link";
 import clsx from "clsx";
 import type { ClassCardData } from "@/lib/class-cards";
 import svgPaths from "@/lib/home-svg-paths";
+import { useRouter } from "next/navigation";
+import { useClassStore } from "@/stores/classStore";
+import { useProfileStore } from "@/stores/profileStore";
+import { useState } from "react";
 
 function Wrapper1({ children }: React.PropsWithChildren) {
   return (
@@ -66,7 +70,123 @@ export function ClassCard({
   buttonClass,
   showDecorativeStar,
   href,
+  challenge,
 }: ClassCardData) {
+  const router = useRouter();
+  const { initializeClass, sessions } = useClassStore();
+  const { teacherProfile } = useProfileStore();
+  const [isLoading, setIsLoading] = useState(false);
+
+  // Check if session exists
+  const existingSessionId = challenge?.id;
+  const isResumable = existingSessionId && sessions[existingSessionId];
+
+  const handleStartClass = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    if (isLoading) return;
+
+    if (!challenge) {
+      if (href) router.push(href);
+      return;
+    }
+
+    if (isResumable) {
+        router.push(`/course-in-progress/${existingSessionId}`);
+        return;
+    }
+
+    // 1. Generate Personas if needed (simplified inline logic)
+    setIsLoading(true);
+    try {
+      // Reuse the logic from test-room/page.tsx or call an API
+      // For now, we'll assume we need to fetch them
+      const identity = teacherProfile?.teacher_profile?.identity;
+      const teacherIdentity = identity
+        ? { subjects_taught: identity.subjects_taught ?? [], grade_levels: identity.grade_levels ?? [] }
+        : { subjects_taught: [], grade_levels: [] };
+
+      const lessonTopicObj = challenge.lesson_topic;
+      const lessonTopic = lessonTopicObj
+        ? { subject: lessonTopicObj.subject ?? "math", grade_level: lessonTopicObj.grade_level ?? "9th" }
+        : { subject: "math", grade_level: "9th" };
+
+      const rawConstraints = lessonTopicObj?.persona_generation_constraints
+        ?? { num_students_needed: 5, student_archetypes_needed: [{ type: "mixed", count: 5 }] };
+      
+      const personaGenerationConstraints = {
+        ...rawConstraints,
+        num_students_needed: Math.min(rawConstraints.num_students_needed, 8),
+      };
+
+      const res = await fetch("/api/personas", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          teacher_identity: teacherIdentity,
+          persona_generation_constraints: personaGenerationConstraints,
+          lesson_topic: lessonTopic,
+        }),
+      });
+
+      if (!res.ok) throw new Error("Failed to generate personas");
+      const { personas } = await res.json();
+
+      // 2. Build Class State
+      const students: Record<string, any> = {};
+      const allAvatars = ['amara', 'bence', 'mate', 'sofia'];
+      let availableAvatars = [...allAvatars];
+
+      personas.forEach((persona: any, index: number) => {
+          const safeName = persona.identity.name.toLowerCase().replace(/\s+/g, '_');
+          const id = `${safeName}_${index}`;
+          
+          if (availableAvatars.length === 0) availableAvatars = [...allAvatars];
+          const randomIndex = Math.floor(Math.random() * availableAvatars.length);
+          const avatarId = availableAvatars.splice(randomIndex, 1)[0];
+          
+          students[id] = {
+              persona,
+              avatarId,
+              state: {
+                  attention: 75,
+                  understanding: 50,
+                  status: 'listening',
+                  memory: [],
+                  pending_question: null,
+                  last_interacted_round: 0,
+                  mood: persona.initial_state.mood_label,
+                  energy: persona.initial_state.energy
+              }
+          };
+      });
+
+      const topic = lessonTopicObj?.topic 
+        ? `${lessonTopicObj.subject}: ${lessonTopicObj.topic}`
+        : "General Lesson";
+
+      const classState = {
+          session_id: challenge.id || `session_${Date.now()}`,
+          round_num: 0,
+          topic,
+          class_log: [],
+          hand_queue: [],
+          time_since_question: 0,
+          students
+      };
+
+      // 3. Initialize Store & Redirect
+      initializeClass(classState as any);
+      router.push(`/course-in-progress/${classState.session_id}`);
+
+    } catch (err) {
+      console.error("Failed to start class:", err);
+      // Fallback
+      if (href) router.push(href);
+    } finally {
+        setIsLoading(false);
+    }
+  };
+
   const wrapperClass =
     variant === "featured" ? "bg-[#011627]" : "bg-white";
   const labelColorClass =
@@ -81,30 +201,34 @@ export function ClassCard({
     <div className="relative shrink-0 w-full">
       <div className="flex flex-row items-center justify-center size-full">
         <div className="content-stretch flex gap-[10px] items-center justify-center px-[16px] py-[12px] relative w-full">
-          <div
-            className="overflow-clip relative shrink-0 size-[20px]"
-            data-name="player-play-filled"
-          >
+          {isLoading ? (
+             <div className="size-[20px] border-2 border-white border-t-transparent rounded-full animate-spin" />
+          ) : (
             <div
-              className="absolute bottom-[12.5%] left-1/4 right-[12.5%] top-[12.5%]"
-              data-name="Vector"
+                className="overflow-clip relative shrink-0 size-[20px]"
+                data-name="player-play-filled"
             >
-              <svg
-                className="absolute block size-full"
-                fill="none"
-                preserveAspectRatio="none"
-                viewBox="0 0 12.5004 15.0005"
-              >
-                <path
-                  d={svgPaths.p3fcfd780}
-                  fill="var(--fill-0, white)"
-                  id="Vector"
-                />
-              </svg>
+                <div
+                className="absolute bottom-[12.5%] left-1/4 right-[12.5%] top-[12.5%]"
+                data-name="Vector"
+                >
+                <svg
+                    className="absolute block size-full"
+                    fill="none"
+                    preserveAspectRatio="none"
+                    viewBox="0 0 12.5004 15.0005"
+                >
+                    <path
+                    d={svgPaths.p3fcfd780}
+                    fill="var(--fill-0, white)"
+                    id="Vector"
+                    />
+                </svg>
+                </div>
             </div>
-          </div>
+          )}
           <p className="font-extrabold leading-[1.2] not-italic relative shrink-0 text-[16px] text-white uppercase">
-            {buttonText}
+            {isLoading ? "Generating..." : (isResumable ? "Resume Class" : buttonText)}
           </p>
         </div>
       </div>
@@ -202,12 +326,13 @@ export function ClassCard({
           />
         </div>
       )}
-      <Link
-        href={href ?? "/course-in-progress"}
-        className={clsx("relative shrink-0 w-full z-10", buttonClass)}
+      <button
+        type="button"
+        className={clsx("relative shrink-0 w-full z-10 block", buttonClass)}
+        onClick={handleStartClass}
       >
         {buttonContent}
-      </Link>
+      </button>
     </Wrapper>
   );
 }
