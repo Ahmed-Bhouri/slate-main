@@ -371,7 +371,7 @@ export default function CourseInProgressPage({ params }: { params: { id?: string
   const { teacherProfile, hasHydrated } = useProfileStore();
   
   // --- Simulation Logic ---
-  const { classState, roundHistory, updateFromRound, isProcessing, reset, loadSession } = useClassStore(); // Added loadSession
+  const { classState, roundHistory, updateFromRound, isProcessing, reset, loadSession, sessionEnded } = useClassStore();
   const [partialText, setPartialText] = useState("");
   const [isListening, setIsListening] = useState(false);
   const classStateRef = useRef<ClassState | null>(null);
@@ -469,11 +469,26 @@ export default function CourseInProgressPage({ params }: { params: { id?: string
 
   if (!classState) {
     return (
-      <div className="flex h-screen items-center justify-center flex-col gap-4">
-        <p className="text-xl font-bold">No active class session found.</p>
-        <Link href="/test-room" className="text-blue-600 hover:underline">
-          Go to Room Generation
-        </Link>
+      <div className="flex h-screen items-center justify-center flex-col gap-4 bg-white">
+        {sessionEnded ? (
+          <>
+            <p className="text-xl font-bold text-[#011627]">Session ended</p>
+            <p className="text-[14px] text-[rgba(0,0,0,0.7)]">View your performance report from this session.</p>
+            <Link
+              href="/report"
+              className="bg-[#05c770] text-white font-bold text-[14px] uppercase px-[16px] py-[12px] hover:opacity-90 transition-opacity"
+            >
+              View report
+            </Link>
+          </>
+        ) : (
+          <>
+            <p className="text-xl font-bold text-[#011627]">No active class session found.</p>
+            <Link href="/test-room" className="text-[#05c770] font-medium hover:underline">
+              Go to Room Generation
+            </Link>
+          </>
+        )}
       </div>
     );
   }
@@ -619,6 +634,21 @@ export default function CourseInProgressPage({ params }: { params: { id?: string
                         &quot;{partialText}&quot;
                     </div>
                 )}
+
+                {/* End Session - generates report and navigates to report page */}
+                <button
+                  type="button"
+                  onClick={() => router.push("/report")}
+                  className="relative shrink-0 w-full mt-4 border border-[#011627] border-solid bg-white hover:bg-[#f3f3f5] transition-colors"
+                >
+                  <div className="flex flex-row items-center justify-center size-full">
+                    <div className="content-stretch flex gap-[10px] items-center justify-center px-[16px] py-[12px] relative w-full">
+                      <p className="font-extrabold leading-[1.2] relative shrink-0 text-[16px] text-[#011627] uppercase">
+                        End session
+                      </p>
+                    </div>
+                  </div>
+                </button>
 
               </CourseInfoCard>
               

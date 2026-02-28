@@ -1,10 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useClassStore } from "@/stores/classStore";
 import { useProfileStore } from "@/stores/profileStore";
+
+const REPORT_STORAGE_KEY = "slate-last-report";
 
 type ReportData = {
   summary?: string;
@@ -12,6 +14,27 @@ type ReportData = {
   areas_for_improvement?: (string | { point: string; example: string })[];
   score_adjustment?: Record<string, number>;
 };
+
+function loadReportFromStorage(): ReportData | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = localStorage.getItem(REPORT_STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as unknown;
+    return parsed && typeof parsed === "object" ? (parsed as ReportData) : null;
+  } catch {
+    return null;
+  }
+}
+
+function saveReportToStorage(report: ReportData): void {
+  if (typeof window === "undefined") return;
+  try {
+    localStorage.setItem(REPORT_STORAGE_KEY, JSON.stringify(report));
+  } catch {
+    // ignore
+  }
+}
 
 function NavLogo() {
   return (
@@ -70,26 +93,40 @@ export default function ReportPage() {
   const { classState, getKPIs, reset: resetClass } = useClassStore();
   const { teacherProfile, setTeacherProfile, hasHydrated } = useProfileStore();
   
-  const [report, setReport] = useState<any>(null);
+  const [report, setReport] = useState<ReportData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const hasFetchedRef = useRef(false);
 
   useEffect(() => {
-    if (!hasHydrated) return;
+    if (!hasHydrated || hasFetchedRef.current) return;
+
+    const hasSessionData = classState && teacherProfile;
+
+    if (!hasSessionData) {
+      hasFetchedRef.current = true;
+      const stored = loadReportFromStorage();
+      if (stored) {
+        setReport(stored);
+      } else {
+        setError("Missing session data. Cannot generate report.");
+      }
+      setIsLoading(false);
+      return;
+    }
 
     async function fetchReport() {
-      if (!classState || !teacherProfile) {
-        setError("Missing session data. Cannot generate report.");
+      const kpis = getKPIs();
+      if (!kpis) {
+        hasFetchedRef.current = true;
+        const stored = loadReportFromStorage();
+        if (stored) setReport(stored);
+        else setError("Could not calculate session KPIs.");
         setIsLoading(false);
         return;
       }
 
-      const kpis = getKPIs();
-      if (!kpis) {
-        setError("Could not calculate session KPIs.");
-        setIsLoading(false);
-        return;
-      }
+      hasFetchedRef.current = true;
 
       try {
         const res = await fetch("/api/report", {
@@ -106,20 +143,24 @@ export default function ReportPage() {
 
         const data = await res.json();
         setReport(data.report);
+        saveReportToStorage(data.report);
         setTeacherProfile(data.updatedProfile);
+        resetClass(); // Session ended: clear active class state from store
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Unknown error");
+        const stored = loadReportFromStorage();
+        if (stored) setReport(stored);
+        else setError(err instanceof Error ? err.message : "Unknown error");
       } finally {
         setIsLoading(false);
       }
     }
 
     fetchReport();
-  }, [hasHydrated, classState, teacherProfile, getKPIs, setTeacherProfile]);
+  }, [hasHydrated, classState, teacherProfile, getKPIs, setTeacherProfile, resetClass]);
 
   const handleStartNewSession = () => {
-    resetClass();
-    router.push("/test-room");
+    resetClass({ markSessionEnded: false });
+    router.push("/");
   };
 
   const navBar = (
