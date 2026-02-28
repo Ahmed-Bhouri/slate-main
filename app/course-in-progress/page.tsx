@@ -431,6 +431,9 @@ export default function CourseInProgressPage() {
                 <Link href="/training" className="relative shrink-0">
                   Trainings
                 </Link>
+                <Link href="/report" className="relative shrink-0">
+                  Report
+                </Link>
               </nav>
               <div className="content-stretch flex gap-[24px] items-center justify-end relative shrink-0">
                 <p className="font-bold leading-[1.2] relative shrink-0 text-[16px] text-black" dir="auto">

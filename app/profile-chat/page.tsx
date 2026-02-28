@@ -263,6 +263,7 @@ export default function ProfileChatPage() {
                 <nav className="content-stretch flex gap-[48px] items-center leading-[1.2] relative shrink-0 text-[16px] uppercase">
                   <Link href="/" className="font-medium relative shrink-0 text-black">Home</Link>
                   <Link href="/training" className="font-medium relative shrink-0 text-black">Trainings</Link>
+                  <Link href="/report" className="font-medium relative shrink-0 text-black">Report</Link>
                 </nav>
                 <div className="content-stretch flex gap-[24px] items-center justify-end relative shrink-0">
                   <p className="font-bold leading-[1.2] relative shrink-0 text-[16px] text-black" dir="auto">EN</p>

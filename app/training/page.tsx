@@ -134,6 +134,9 @@ export default function TrainingPage() {
                 <p className="font-bold relative shrink-0 text-[#05c770]">
                   Trainings
                 </p>
+                <Link href="/report" className="font-medium relative shrink-0 text-black">
+                  Report
+                </Link>
               </div>
               <div className="content-stretch flex gap-[24px] items-center justify-end relative shrink-0">
                 <p className="font-bold leading-[1.2] relative shrink-0 text-[16px] text-black" dir="auto">
