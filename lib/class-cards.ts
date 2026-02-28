@@ -117,7 +117,23 @@ export const DEFAULT_CLASS_CARDS: ClassCardData[] = [
     buttonText: "Start Class",
     buttonClass: "bg-[#05c770]",
     showDecorativeStar: true,
-    href: "/course-in-progress",
+    href: undefined, // Let the click handler manage routing
+    challenge: {
+        id: "adaptive-algebra-basic",
+        lesson_topic: {
+            subject: "Algebra",
+            topic: "Basic Set Theory",
+            objective: "Understand basic set operations (union, intersection)",
+            grade_level: "9th",
+            persona_generation_constraints: {
+                num_students_needed: 5,
+                student_archetypes_needed: [{ type: "mixed", count: 5 }]
+            }
+        },
+        difficulty: "easy",
+        estimated_duration: 20,
+        targeted_improvement: "Set Theory Basics"
+    } as ClassScenarioChallenge
   },
   {
     variant: "default",
@@ -136,7 +152,23 @@ export const DEFAULT_CLASS_CARDS: ClassCardData[] = [
     durationTag: { text: "20 mins", tagClass: "bg-[#04a2f1]" },
     buttonText: "Start Class",
     buttonClass: "bg-[#05c770]",
-    href: "/course-in-progress",
+    href: undefined,
+    challenge: {
+        id: "calculus-linear-slope",
+        lesson_topic: {
+            subject: "Calculus",
+            topic: "Linear Slope",
+            objective: "Calculate the slope of a linear function",
+            grade_level: "11th",
+            persona_generation_constraints: {
+                num_students_needed: 6,
+                student_archetypes_needed: [{ type: "mixed", count: 6 }]
+            }
+        },
+        difficulty: "medium",
+        estimated_duration: 20,
+        targeted_improvement: "Slope Calculation"
+    } as ClassScenarioChallenge
   },
   {
     variant: "default",
@@ -155,6 +187,22 @@ export const DEFAULT_CLASS_CARDS: ClassCardData[] = [
     durationTag: { text: "20 mins", tagClass: "bg-[#04a2f1]" },
     buttonText: "Start Class",
     buttonClass: "bg-[#05c770]",
-    href: "/course-in-progress",
+    href: undefined,
+    challenge: {
+        id: "calculus-derivative-slope",
+        lesson_topic: {
+            subject: "Calculus",
+            topic: "Derivative Slope",
+            objective: "Calculate the slope of a derivative function",
+            grade_level: "12th",
+            persona_generation_constraints: {
+                num_students_needed: 6,
+                student_archetypes_needed: [{ type: "mixed", count: 6 }]
+            }
+        },
+        difficulty: "medium",
+        estimated_duration: 20,
+        targeted_improvement: "Derivatives"
+    } as ClassScenarioChallenge
   },
 ];
