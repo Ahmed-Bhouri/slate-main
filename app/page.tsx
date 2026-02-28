@@ -402,6 +402,9 @@ export default function Home() {
                 <Link href="/training" className="font-medium relative shrink-0 text-black">
                   Trainings
                 </Link>
+                <Link href="/report" className="font-medium relative shrink-0 text-black">
+                  Report
+                </Link>
               </div>
               <div className="content-stretch flex gap-[24px] items-center justify-end relative shrink-0">
                 <p

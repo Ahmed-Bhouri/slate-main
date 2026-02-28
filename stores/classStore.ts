@@ -15,16 +15,19 @@ interface ClassStore {
   classState: ClassState | null
   roundHistory: RoundEntry[]
   isProcessing: boolean
-  
+  /** True after session is ended (e.g. via End session → report); cleared when a new class is initialized */
+  sessionEnded: boolean
+
   // All saved sessions
   sessions: Record<string, SessionData>
-  
+
   // Actions
   initializeClass: (classState: ClassState) => void
   updateFromRound: (newClassState: ClassState, orchestratorOutput: any) => void
   loadSession: (sessionId: string) => void
   deleteSession: (sessionId: string) => void
-  reset: () => void
+  /** Clears active session. Pass { markSessionEnded: false } when starting fresh (e.g. Start new session). */
+  reset: (options?: { markSessionEnded?: boolean }) => void
   
   // Getters
   getKPIs: () => KPIs | null
@@ -40,20 +43,22 @@ export const useClassStore = create<ClassStore>()(
         roundHistory: [],
         sessions: {},
         isProcessing: false,
-        
+        sessionEnded: false,
+
         initializeClass: (classState: ClassState) => {
           const { sessions } = get()
-          
+
           const newSession: SessionData = {
             classState,
             roundHistory: [],
             lastUpdated: Date.now()
           }
-          
+
           set({
             classState,
             roundHistory: [],
             isProcessing: false,
+            sessionEnded: false,
             sessions: {
               ...sessions,
               [classState.session_id]: newSession
@@ -127,13 +132,15 @@ export const useClassStore = create<ClassStore>()(
           })
         },
 
-        reset: () => {
+        reset: (options) => {
+          const markSessionEnded = options?.markSessionEnded !== false
           set({
             classState: null,
             roundHistory: [],
-            isProcessing: false
+            isProcessing: false,
+            sessionEnded: markSessionEnded
           })
-          // We intentionally DO NOT clear sessions here, 
+          // We intentionally DO NOT clear sessions here,
           // so "End Session" just clears active state but keeps history.
         },
 
@@ -161,7 +168,8 @@ export const useClassStore = create<ClassStore>()(
         partialize: (state) => ({
           classState: state.classState,
           roundHistory: state.roundHistory,
-          sessions: state.sessions
+          sessions: state.sessions,
+          sessionEnded: state.sessionEnded
         })
       }
     )

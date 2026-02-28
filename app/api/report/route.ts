@@ -49,19 +49,26 @@ Context:
   - Bloom Level Average: ${kpis.bloom_level.toFixed(1)}
   - Inclusion Score: ${(kpis.inclusion_score * 100).toFixed(1)}%
 
-Task:
-Generate a structured JSON report evaluating the teacher's performance.
-The report must include:
-1. "summary": A 2-3 sentence overview of the session.
-2. "strengths": Array of 3 specific things the teacher did well (with examples from the log).
-3. "areas_for_improvement": Array of 3 specific actionable advice (with examples of what went wrong).
-4. "score_adjustment": A recommendation for how to adjust the teacher's profile scores (-0.1 to +0.1) for these categories:
-   - "classroom_management"
-   - "student_engagement"
-   - "content_knowledge"
-   - "instructional_clarity"
+You MUST respond with valid JSON only, no markdown or extra text. Use exactly this structure:
 
-Return JSON only.
+{
+  "summary": "<2-3 sentence overview of the session>",
+  "strengths": ["<first strength with optional example from log>", "<second strength>", "<third strength>"],
+  "areas_for_improvement": ["<first actionable improvement>", "<second improvement>", "<third improvement>"],
+  "score_adjustment": {
+    "classroom_management": <number from -0.1 to 0.1>,
+    "student_engagement": <number from -0.1 to 0.1>,
+    "content_knowledge": <number from -0.1 to 0.1>,
+    "instructional_clarity": <number from -0.1 to 0.1>
+  }
+}
+
+Rules:
+- "summary": One string, 2-3 sentences.
+- "strengths": Exactly 3 strings. Each string describes one thing the teacher did well; you may include a brief example from the transcript.
+- "areas_for_improvement": Exactly 3 strings. Each string is one specific, actionable piece of advice.
+- "score_adjustment": Object with exactly the four keys above. Each value is a number between -0.1 and 0.1 (e.g. 0.05, -0.08). Use 0 if no change.
+- Do not add any other keys. Do not wrap the JSON in code blocks or markdown.
 `;
 
   const userPrompt = `
@@ -81,7 +88,58 @@ ${classLogSummary}
   const content = response.choices[0].message.content;
   if (!content) throw new Error("No report generated");
 
-  return JSON.parse(content);
+  let parsed: Record<string, unknown>;
+  try {
+    const raw = content.trim().replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/i, "");
+    parsed = JSON.parse(raw) as Record<string, unknown>;
+  } catch {
+    throw new Error("Report response was not valid JSON");
+  }
+
+  return normalizeReport(parsed);
+}
+
+/** Ensure the report has the exact shape expected by the frontend. */
+function normalizeReport(parsed: Record<string, unknown>): Record<string, unknown> {
+  const summary =
+    typeof parsed.summary === "string"
+      ? parsed.summary
+      : "Session analysis complete.";
+
+  const strengths = Array.isArray(parsed.strengths)
+    ? parsed.strengths
+        .filter((s): s is string => typeof s === "string")
+        .slice(0, 3)
+    : [];
+  while (strengths.length < 3) strengths.push("—");
+
+  const areas_for_improvement = Array.isArray(parsed.areas_for_improvement)
+    ? parsed.areas_for_improvement
+        .filter((s): s is string => typeof s === "string")
+        .slice(0, 3)
+    : [];
+  while (areas_for_improvement.length < 3) areas_for_improvement.push("—");
+
+  const rawAdj = parsed.score_adjustment;
+  const score_adjustment: Record<string, number> = {
+    classroom_management: 0,
+    student_engagement: 0,
+    content_knowledge: 0,
+    instructional_clarity: 0,
+  };
+  if (rawAdj && typeof rawAdj === "object" && !Array.isArray(rawAdj)) {
+    for (const key of Object.keys(score_adjustment)) {
+      const v = (rawAdj as Record<string, unknown>)[key];
+      if (typeof v === "number" && v >= -0.1 && v <= 0.1) score_adjustment[key] = v;
+    }
+  }
+
+  return {
+    summary,
+    strengths,
+    areas_for_improvement,
+    score_adjustment,
+  };
 }
 
 async function updateTeacherProfile(currentProfile: any, report: any, kpis: KPIs) {
